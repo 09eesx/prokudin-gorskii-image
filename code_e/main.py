@@ -2,6 +2,9 @@ import time
 import numpy as np
 import skimage.io as skio
 import matplotlib.pyplot as plt
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from enhancement import enhance_image
 
 from code_e.utils_e import goruntu_hizalama, save_and_display_results
 from code_e.alignment import Image_pyramid
@@ -45,12 +48,41 @@ def run_alignment_pipeline(search_range, image_name, crop_percent, pyramid_depth
     save_and_display_results(im_out, image_name, search_range, total_time, total_r_shift, total_g_shift)
 
 
+def process_single_image(file_path, search=15, crop=5, depth=4):
+    """
+    Tek bir görüntüyü hizala, iyileştir ve kaydet.
+    """
+    name = os.path.splitext(os.path.basename(file_path))[0]
+    print(f"Başladı -> {name}")
+
+    start = time.time()
+    image_Z = skio.imread(file_path)
+    red, blue, green = goruntu_hizalama(image_Z, crop)
+
+    g_final, r_final, r_disp, g_disp = Image_pyramid(red, green, blue, depth, search)
+    im_out = np.dstack((r_final, g_final, blue))
+    im_out = enhance_image(im_out)
+
+    total_time = time.time() - start
+    save_and_display_results(im_out, name, search, total_time, r_disp, g_disp)
+    print(f"Bitti -> {name} | Süre: {total_time:.2f} sn")
+    return name
+
+
+def parallel_batch_process(data_folder, workers=4):
+    """
+    Klasördeki tüm .jpg dosyalarını paralel olarak işler.
+    """
+    files = [os.path.join(data_folder, f) for f in os.listdir(data_folder) if f.lower().endswith(".jpg")]
+
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(process_single_image, f): f for f in files}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+            except Exception as e:
+                print(f"Hata: {e}")
+
 if __name__ == "__main__":
-    search = 35
-    name = input("Lütfen renkli görüntü için dosya adını giriniz (uzantısız): ")
-    crop_amount = 4
-    depth = 10
-    image_path = input("Lütfen hizalanacak görüntünün yolunu giriniz: ")
-
-    run_alignment_pipeline(search, name, crop_amount, depth, image_path)
-
+    data_folder = "data_e"
+    parallel_batch_process(data_folder, workers=8) 

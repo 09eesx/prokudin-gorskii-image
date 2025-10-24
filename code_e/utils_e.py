@@ -76,4 +76,80 @@ def save_and_display_results(im_out, name, search, total_time, total_r_shift, to
     skio.imshow(fname)
     plt.title(f'Final Aligned Image (Total Time: {total_time:.2f}s)')
     plt.axis('off')
-    plt.show()
+#  BONUS: OTOMATİK KENAR KIRPMA (10 PUAN)
+# ============================================================
+def auto_border_crop(img, threshold_ratio=0.10, min_crop_pixels=5):
+    """
+     Otomatik Kenar Kırpma Fonksiyonu
+    Görüntü kenarlarındaki siyah çerçeveleri ve hizalama artifaktlarını
+    otomatik olarak tespit edip kırpar.
+
+    Önerilen analiz:
+    - Kenar piksellerinin yoğunluk ortalamasını hesapla
+    - Eşik değerin altındaki bölgeleri kırp
+    - Dört kenarda ayrı ayrı kırpma uygula
+
+    Args:
+        img (ndarray): Giriş görüntüsü (RGB veya grayscale)
+        threshold_ratio (float): 0-1 arası kırpma eşiği oranı (daha yüksek = agresif kırpma)
+        min_crop_pixels (int): Minimum kırpılacak piksel miktarı (her kenar)
+
+    Returns:
+        cropped_img (ndarray): Kırpılmış yeni görüntü
+    """
+    import numpy as np
+
+    # Griye dönüştür
+    if img.ndim == 3:
+        gray = np.mean(img, axis=2)
+    else:
+        gray = img.copy()
+
+    # Normalize et (0–1 arası)
+    gray = gray.astype(np.float32)
+    gray /= np.max(gray) if np.max(gray) != 0 else 1
+
+    h, w = gray.shape
+    threshold = threshold_ratio * np.mean(gray)
+
+    # Kenar yoğunluklarını analiz et
+    top, bottom, left, right = 0, h, 0, w
+
+    # Üst kenar
+    for i in range(h // 4):
+        if np.mean(gray[i, :]) < threshold:
+            top = i + min_crop_pixels
+        else:
+            break
+
+    # Alt kenar
+    for i in range(h - 1, h * 3 // 4, -1):
+        if np.mean(gray[i, :]) < threshold:
+            bottom = i - min_crop_pixels
+        else:
+            break
+
+    # Sol kenar
+    for j in range(w // 4):
+        if np.mean(gray[:, j]) < threshold:
+            left = j + min_crop_pixels
+        else:
+            break
+
+    # Sağ kenar
+    for j in range(w - 1, w * 3 // 4, -1):
+        if np.mean(gray[:, j]) < threshold:
+            right = j - min_crop_pixels
+        else:
+            break
+
+    # Limitleri güvenli hale getir
+    top = max(0, top)
+    left = max(0, left)
+    bottom = min(h, bottom)
+    right = min(w, right)
+
+    # Kırpılmış görüntüyü döndür
+    cropped = img[top:bottom, left:right]
+    print(f" Otomatik kırpma uygulandı -> Yeni boyut: {cropped.shape}")
+    return cropped
